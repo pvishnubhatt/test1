@@ -13,14 +13,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
-type Test struct {
-	name string
-	zip  string
-}
 type HTTPServer struct {
 	http.Server
-	shutdownReq chan bool
-	Test
 }
 
 func main() {
@@ -28,20 +22,14 @@ func main() {
 	router := mux.NewRouter()
 	server := &HTTPServer{
 		Server: http.Server{
-			Addr:    ":8000",
+			Addr:    "8000",
 			Handler: router,
-		},
-		shutdownReq: make(chan bool),
-		Test: Test{
-			name: "Paddy",
-			zip:  "94024",
 		},
 	}
 
 	router.HandleFunc("/", handleMain)
 	router.HandleFunc("/counter", handleMain)
 	router.HandleFunc("/counter/get", handleMain)
-	router.HandleFunc("/shutdown", server.ShutdownHandler)
 	log.Println("Main Server is running!")
 	done := make(chan bool)
 	go func() {
@@ -54,7 +42,7 @@ func main() {
 
 	//wait shutdown
 	server.WaitShutdown()
-	log.Println("Shutting down ", server.name, server.zip)
+	log.Println("Shutting down")
 
 	<-done
 	log.Printf("DONE!")
@@ -76,26 +64,14 @@ func (s *HTTPServer) WaitShutdown() {
 	select {
 	case sig := <-irqSig:
 		log.Printf("Shutdown request (signal: %v)", sig)
-	case sig := <-s.shutdownReq:
-		log.Printf("Shutdown request (/shutdown %v)", sig)
+	case <-time.After(2 * time.Second):
+		log.Printf("Its been 2 seconds")
 	}
-
-	log.Printf("Stoping http server ...")
-
-	//Create shutdown context with 10 second timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	log.Printf("Stopping http server ...")
 
 	//shutdown the server
-	err := s.Shutdown(ctx)
+	err := s.Shutdown(context.Background())
 	if err != nil {
 		log.Printf("Shutdown request error: %v", err)
 	}
-}
-
-func (s *HTTPServer) ShutdownHandler(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("Shutdown server"))
-	go func() {
-		s.shutdownReq <- true
-	}()
 }
